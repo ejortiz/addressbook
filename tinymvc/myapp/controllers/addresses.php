@@ -2,6 +2,7 @@
 
 
 require_once(dirname(__FILE__).DS.'..'.DS.'formhelpers'.DS.'basic_sanitizer.php');
+require_once(dirname(__FILE__).DS.'..'.DS.'validation'.DS.'address_validator.php');
 /**
  * Created by PhpStorm.
  * User: eortiz17
@@ -10,7 +11,18 @@ require_once(dirname(__FILE__).DS.'..'.DS.'formhelpers'.DS.'basic_sanitizer.php'
  */
 class Addresses_Controller extends TinyMVC_Controller
 {
-    private $data_sanitizer;
+    private $address_validator;
+
+    /**
+     * Addresses_Controller constructor.
+     * @param $address_validator
+     */
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->address_validator = new Address_Validator();
+    }
 
 
 
@@ -28,29 +40,6 @@ class Addresses_Controller extends TinyMVC_Controller
         $this->view->display('site_template');
     }
 
-    // displays address form to edit or add a new address
-    public function addressForm($id=null)
-    {
-        $view_model = null;
-
-        // get address details if the address is not null
-        if($id!=null)
-        {
-            $view_model = $this->load->database()->query_one('select * from addresses where id=?',array($id));
-        }
-
-        $sub_view =  new TinyMVC_View();
-        if($view_model!=null)
-            $sub_view->assign('view_model', $view_model);
-
-        $main_content = $sub_view->fetch('addressform_view');
-
-        $this->view->assign('main_content', $main_content);
-        $this->view->display('site_template');
-    }
-
-
-
 
 
     public function newAddress()
@@ -60,12 +49,27 @@ class Addresses_Controller extends TinyMVC_Controller
 
             // save the new address
             $address = $this->getAddressFromPost();
-            $this->save($address);
+            $saved = $this->save($address);
 
-            // display a success message and return the view
-            $success_message = 'Address \''.$address->addressLine1.'\' saved.';
+            // set up sub view and view to display upon editing
             $sub_view = new TinyMVC_View();
-            $sub_view->assign('message', $success_message);
+            // display a success message and return the view
+            $success_message=null;
+            $error_messages=null;
+
+            // if saved, set success message. If not, display errors
+            if($saved)
+            {
+                $success_message = 'Address \''.$address->addressLine1.'\' saved.';
+                $sub_view->assign('success_message', $success_message);
+            }
+            else
+            {
+                $error_messages = $this->address_validator->errors;
+                $sub_view->assign('error_messages', $error_messages);
+                $sub_view->assign('address', $address);
+            }
+
 
             $main_content = $sub_view->fetch('addressform_view');
 
@@ -89,14 +93,28 @@ class Addresses_Controller extends TinyMVC_Controller
 
             // save the new address
             $address = $this->getAddressFromPost();
-            $this->save($address);
 
-            // display a success message and return the view
-            $success_message = 'Address \''.$address->addressLine1.'\' saved.';
+            // check if the $address was properly saved
+            $saved = $this->save($address);
 
-
+            // set up sub view and view to display upon editing
             $sub_view = new TinyMVC_View();
-            $sub_view->assign('success_message', $success_message);
+            // display a success message and return the view
+            $success_message=null;
+            $error_messages=null;
+
+            // if saved, set success message. If not, display errors
+            if($saved)
+            {
+                $success_message = 'Address \''.$address->addressLine1.'\' saved.';
+                $sub_view->assign('success_message', $success_message);
+            }
+            else
+            {
+                $error_messages = $this->address_validator->errors;
+                $sub_view->assign('error_messages', $error_messages);
+            }
+
             $sub_view->assign('address',$address);
 
             $main_content = $sub_view->fetch('addressform_view');
@@ -122,6 +140,7 @@ class Addresses_Controller extends TinyMVC_Controller
 
     /**
      * @param $id: the id of the address that you want to delete
+     * @return bool: returns true if saving worked, false otherwise
      */
     public function deleteAddress($id){
         $this->load->database()->where('id = ?',$id); // setup query conditions ()
@@ -133,6 +152,7 @@ class Addresses_Controller extends TinyMVC_Controller
 
     /**
      * @param $address: Address that you would like to save
+     * @return bool: indicates if save was successful or not
      */
     public function save($address)
     {
@@ -143,12 +163,11 @@ class Addresses_Controller extends TinyMVC_Controller
             if (!empty($_POST)) {
 
 
-                //TODO: add model validation within the model itself
 
-                // check if we will insert a new record of update an old record
+                // check if we will insert a new record or update an old record
 
-                // if the return string of the id is empty, the entry is a new entry
-                if (empty($address->id)) {
+                // save if the entry has no id and the address is not already in the db
+                if (empty($address->id) && $this->address_validator->is_unique($address)) {
                     $this->load->database()->insert('addresses',
                         array('AddressLine1' => $address->addressLine1,
                             'AddressLine2' => $address->addressLine2,
@@ -159,11 +178,13 @@ class Addresses_Controller extends TinyMVC_Controller
                         )
                     );
 
-                    //after inserting database go back to new
+                    //save successful, return true
+                    return true;
+
                 }
 
                 // if the id is not empty, try to update the table with the id
-                if (!empty($address->id)) {
+                elseif (!empty($address->id) && $this->address_validator->is_unique($address)) {
 
                     $this->load->database()->where('Id', $address->id); // where Id = $address->id
                     $this->load->database()->update('addresses',
@@ -175,7 +196,12 @@ class Addresses_Controller extends TinyMVC_Controller
                             'Country' => $address->country
                         )
                     );
+                    return true;
 
+                }
+                else
+                {
+                    return false;
                 }
 
             }

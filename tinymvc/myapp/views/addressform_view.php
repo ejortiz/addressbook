@@ -11,6 +11,14 @@
 
 <??>
 <h3 class="success"><?php if(!empty($success_message)){echo $success_message;} ?></h3>
+<?php if(!empty($error_messages)):?>
+    <h3>Errors</h3>
+    <ul>
+    <?php foreach($error_messages as $message):?>
+        <li class="error"><?= $message ?></li>
+    <?php endforeach;?>
+    </ul>
+<?php endif; ?>
 
 <form action="" method="post">
     <div class="form-group">
@@ -32,10 +40,6 @@
     <div class="form-group">
         <label for="Zipcode">Zipcode</label>
         <input type="text" class="form-control" name="Zipcode" value="<?php if(!empty($address)) {echo $address->zipcode;} ?>">
-    </div>
-    <div class="form-group">
-        <label for="Country">Country</label>
-        <input type="text" class="form-control" name="Country" placeholder="United States of America" value="<?php if(!empty($address)) {echo $address->country;} ?>">
     </div>
 
     <input type="hidden" class="form-control" name="Id" value="<?php if(!empty($address)) {echo $address->id;} ?>">
